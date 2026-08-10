@@ -1,0 +1,30 @@
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Testing
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Local data
+data/raw/
+data/processed/
+
+# Vector database
+vectorstore/
+
+# OS
+.DS_Store
+Thumbs.db
