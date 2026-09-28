@@ -37,12 +37,12 @@ print(f"Chunks created: {len(chunks)}")
 
 
 # ------------------------------------------------------------------
-# 3. Only use first 5 chunks for this test
+# 3. Index all chunks from the document.
 # ------------------------------------------------------------------
 
-test_chunks = chunks
+chunks_to_index = chunks
 
-print(f"Chunks to index: {len(test_chunks)}")
+print(f"Chunks to index: {len(chunks_to_index)}")
 
 
 # ------------------------------------------------------------------
@@ -62,7 +62,7 @@ print("\n[4] Adding chunks to ChromaDB...")
 
 document_ids = add_chunks(
     vectorstore,
-    test_chunks,
+    chunks_to_index,
 )
 
 print("Chunks indexed successfully.")

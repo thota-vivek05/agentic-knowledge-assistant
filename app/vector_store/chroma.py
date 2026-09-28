@@ -6,7 +6,12 @@ from langchain_core.documents import Document
 from app.embeddings.embedder import create_embedding_model
 
 
-CHROMA_DIR = Path("vectorstore/chroma")
+CHROMA_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "vectorstore"
+    / "chroma"
+)
+
 COLLECTION_NAME = "knowledge_base"
 
 
@@ -31,10 +36,15 @@ def add_chunks(
     chunks: list[dict],
 ) -> list[str]:
     """
-    Add new chunks and update existing chunks using stable IDs.
+    Replace existing chunks for the given sources with the
+    current chunks.
 
     The same source document and chunk index always receive
-    the same document ID.
+    the same stable document ID.
+
+    Deleting the existing source chunks first prevents stale
+    chunks from remaining when a document becomes smaller
+    after re-ingestion.
     """
 
     documents = []
@@ -57,47 +67,22 @@ def add_chunks(
         documents.append(document)
         ids.append(document_id)
 
-    # Check which IDs already exist
-    existing_documents = vectorstore.get_by_ids(ids)
-
-    existing_ids = {
-        document.id
-        for document in existing_documents
-        if document.id
+    # Remove previous chunks for these sources.
+    # This prevents stale chunks when a document shrinks.
+    sources = {
+        chunk["metadata"]["source"]
+        for chunk in chunks
     }
 
-    new_documents = []
-    new_ids = []
-
-    updated_documents = []
-    updated_ids = []
-
-    for document, document_id in zip(documents, ids):
-
-        if document_id in existing_ids:
-
-            updated_documents.append(document)
-            updated_ids.append(document_id)
-
-        else:
-
-            new_documents.append(document)
-            new_ids.append(document_id)
-
-    # Add new documents
-    if new_documents:
-
-        vectorstore.add_documents(
-            documents=new_documents,
-            ids=new_ids,
+    for source in sources:
+        vectorstore.delete(
+            where={"source": source}
         )
 
-    # Update existing documents
-    if updated_documents:
-
-        vectorstore.update_documents(
-            ids=updated_ids,
-            documents=updated_documents,
-        )
+    # Add the current version of the chunks.
+    vectorstore.add_documents(
+        documents=documents,
+        ids=ids,
+    )
 
     return ids
