@@ -3,27 +3,37 @@ from app.vector_store.chroma import create_vectorstore
 
 TOP_K = 3
 
-
 EVALUATION_DATA = [
+    # ---------------------------------------------------------
+    # Direct in-scope questions
+    # ---------------------------------------------------------
     {
+        "id": "direct_1",
+        "category": "direct",
         "question": "How does TCP slow start work?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_3",
         ],
     },
     {
+        "id": "direct_2",
+        "category": "direct",
         "question": "What is TCP Tahoe?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_4",
         ],
     },
     {
+        "id": "direct_3",
+        "category": "direct",
         "question": "What is TCP Reno?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_5",
         ],
     },
     {
+        "id": "direct_4",
+        "category": "direct",
         "question": "What is congestion avoidance?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_4",
@@ -31,12 +41,16 @@ EVALUATION_DATA = [
         ],
     },
     {
+        "id": "direct_5",
+        "category": "direct",
         "question": "What is additive increase multiplicative decrease?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_5",
         ],
     },
     {
+        "id": "direct_6",
+        "category": "direct",
         "question": "What happens when TCP detects packet loss?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_4",
@@ -44,249 +58,300 @@ EVALUATION_DATA = [
         ],
     },
     {
+        "id": "direct_7",
+        "category": "direct",
         "question": "What is explicit congestion notification?",
         "relevant_ids": [
             "congestion_control.pdf::chunk_7",
         ],
     },
+
+    # ---------------------------------------------------------
+    # Paraphrased questions
+    # ---------------------------------------------------------
+    {
+        "id": "paraphrase_1",
+        "category": "paraphrased",
+        "question": "How does TCP initially increase its congestion window?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_3",
+        ],
+    },
+    {
+        "id": "paraphrase_2",
+        "category": "paraphrased",
+        "question": "How does TCP detect and respond to congestion?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_4",
+            "congestion_control.pdf::chunk_9",
+        ],
+    },
+    {
+        "id": "paraphrase_3",
+        "category": "paraphrased",
+        "question": "How does TCP increase its sending rate without causing too much congestion?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_4",
+            "congestion_control.pdf::chunk_5",
+        ],
+    },
+
+    # ---------------------------------------------------------
+    # Vague / underspecified questions
+    # ---------------------------------------------------------
+    {
+        "id": "vague_1",
+        "category": "vague",
+        "question": "What happens when the network gets congested?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_2",
+            "congestion_control.pdf::chunk_4",
+        ],
+    },
+    {
+        "id": "vague_2",
+        "category": "vague",
+        "question": "How does TCP deal with this problem?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_2",
+            "congestion_control.pdf::chunk_4",
+        ],
+    },
+    {
+        "id": "vague_3",
+        "category": "vague",
+        "question": "What does TCP do when things go wrong?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_4",
+            "congestion_control.pdf::chunk_9",
+        ],
+    },
+
+    # ---------------------------------------------------------
+    # Difficult / integrated questions
+    # ---------------------------------------------------------
+    {
+        "id": "difficult_1",
+        "category": "difficult",
+        "question": "How does TCP change its congestion window during slow start and congestion avoidance?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_3",
+            "congestion_control.pdf::chunk_4",
+        ],
+    },
+    {
+        "id": "difficult_2",
+        "category": "difficult",
+        "question": "What are the main phases of TCP congestion control?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_2",
+            "congestion_control.pdf::chunk_3",
+            "congestion_control.pdf::chunk_4",
+        ],
+    },
+    {
+        "id": "difficult_3",
+        "category": "difficult",
+        "question": "How are TCP Tahoe and TCP Reno different when packet loss is detected?",
+        "relevant_ids": [
+            "congestion_control.pdf::chunk_4",
+            "congestion_control.pdf::chunk_5",
+        ],
+    },
+
+    # ---------------------------------------------------------
+    # Out-of-scope questions
+    # ---------------------------------------------------------
+    {
+        "id": "out_of_scope_1",
+        "category": "out_of_scope",
+        "question": "What is the capital of France?",
+        "relevant_ids": [],
+    },
+    {
+        "id": "out_of_scope_2",
+        "category": "out_of_scope",
+        "question": "Explain how a convolutional neural network works.",
+        "relevant_ids": [],
+    },
+    {
+        "id": "out_of_scope_3",
+        "category": "out_of_scope",
+        "question": "What is the difference between Python and Java?",
+        "relevant_ids": [],
+    },
+
+    # ---------------------------------------------------------
+    # Related to the topic but unsupported by current documents
+    # ---------------------------------------------------------
+    {
+        "id": "unsupported_1",
+        "category": "related_unsupported",
+        "question": "How does TCP CUBIC work?",
+        "relevant_ids": [],
+    },
+    {
+        "id": "unsupported_2",
+        "category": "related_unsupported",
+        "question": "What is TCP BBR?",
+        "relevant_ids": [],
+    },
+    {
+        "id": "unsupported_3",
+        "category": "related_unsupported",
+        "question": "How does TCP New Reno improve on TCP Reno?",
+        "relevant_ids": [],
+    },
 ]
 
 
-def get_document_id(document) -> str:
-    """
-    Convert a retrieved LangChain Document into the stable
-    document ID used by Chroma.
+def calculate_metrics(results):
+    total = len(results)
 
-    The ID is reconstructed from source + chunk_index because
-    similarity_search() returns Documents rather than IDs.
-    """
+    hit_at_1 = sum(
+        result["hit_at_1"]
+        for result in results
+    ) / total
 
-    source = document.metadata["source"]
-    chunk_index = document.metadata["chunk_index"]
+    hit_at_3 = sum(
+        result["hit_at_3"]
+        for result in results
+    ) / total
 
-    return f"{source}::chunk_{chunk_index}"
+    reciprocal_ranks = [
+        result["reciprocal_rank"]
+        for result in results
+    ]
 
+    mrr = sum(reciprocal_ranks) / total
 
-def reciprocal_rank(
-    retrieved_ids: list[str],
-    relevant_ids: set[str],
-) -> float:
-    """
-    Calculate Reciprocal Rank.
-
-    If the first relevant result is at rank:
-        1 -> 1.0
-        2 -> 0.5
-        3 -> 0.333...
-        etc.
-
-    If no relevant result is found:
-        0.0
-    """
-
-    for rank, document_id in enumerate(
-        retrieved_ids,
-        start=1,
-    ):
-
-        if document_id in relevant_ids:
-            return 1.0 / rank
-
-    return 0.0
+    return {
+        "hit_at_1": hit_at_1,
+        "hit_at_3": hit_at_3,
+        "mrr": mrr,
+    }
 
 
 def main():
+    print("=" * 80)
+    print("BASELINE RETRIEVAL EVALUATION")
+    print("=" * 80)
+    print()
 
     vectorstore = create_vectorstore()
 
-    hit_at_1_count = 0
-    hit_at_3_count = 0
+    results = []
 
-    reciprocal_ranks = []
-
-    print("=" * 70)
-    print("RETRIEVAL EVALUATION")
-    print("=" * 70)
-    print()
-
-    for index, item in enumerate(
-        EVALUATION_DATA,
-        start=1,
-    ):
-
+    for index, item in enumerate(EVALUATION_DATA, start=1):
         question = item["question"]
+        relevant_ids = set(item["relevant_ids"])
 
-        relevant_ids = set(
-            item["relevant_ids"]
-        )
-
-        # -----------------------------------------------------
-        # Retrieve top-k documents
-        # -----------------------------------------------------
-
-        results = vectorstore.similarity_search(
+        documents = vectorstore.similarity_search(
             question,
             k=TOP_K,
         )
 
         retrieved_ids = [
-            get_document_id(document)
-            for document in results
+            f"{document.metadata.get('source')}::"
+            f"chunk_{document.metadata.get('chunk_index')}"
+            for document in documents
         ]
 
-        # -----------------------------------------------------
-        # Calculate Hit@1
-        # -----------------------------------------------------
-
-        hit_at_1 = (
-            len(relevant_ids.intersection(
-                set(retrieved_ids[:1])
-            )) > 0
+        hit_at_1 = bool(
+            retrieved_ids
+            and relevant_ids
+            and retrieved_ids[0] in relevant_ids
         )
 
-        if hit_at_1:
-            hit_at_1_count += 1
+        relevant_ranks = [
+            rank
+            for rank, document_id in enumerate(
+                retrieved_ids,
+                start=1,
+            )
+            if document_id in relevant_ids
+        ]
 
-        # -----------------------------------------------------
-        # Calculate Hit@3
-        # -----------------------------------------------------
+        if relevant_ranks:
+            reciprocal_rank = 1 / relevant_ranks[0]
+        else:
+            reciprocal_rank = 0.0
 
-        hit_at_3 = (
-            len(relevant_ids.intersection(
-                set(retrieved_ids[:TOP_K])
-            )) > 0
+        hit_at_3 = bool(
+            relevant_ids.intersection(retrieved_ids)
         )
 
-        if hit_at_3:
-            hit_at_3_count += 1
+        result = {
+            "id": item["id"],
+            "category": item["category"],
+            "question": question,
+            "retrieved_ids": retrieved_ids,
+            "hit_at_1": int(hit_at_1),
+            "hit_at_3": int(hit_at_3),
+            "reciprocal_rank": reciprocal_rank,
+        }
 
-        # -----------------------------------------------------
-        # Calculate MRR
-        # -----------------------------------------------------
+        results.append(result)
 
-        rr = reciprocal_rank(
+        print(f"{index}. [{item['category']}]")
+        print(f"   Question: {question}")
+        print()
+
+        for rank, document_id in enumerate(
             retrieved_ids,
-            relevant_ids,
-        )
-
-        reciprocal_ranks.append(rr)
-
-        # -----------------------------------------------------
-        # Print query information
-        # -----------------------------------------------------
-
-        print(f"Query {index}: {question}")
-        print()
-
-        print("Expected relevant IDs:")
-        for document_id in sorted(relevant_ids):
-            print(f"  {document_id}")
-
-        print()
-
-        print("Retrieved:")
-        for rank, document in enumerate(
-            results,
             start=1,
         ):
-
-            document_id = retrieved_ids[rank - 1]
-
-            is_relevant = (
-                document_id in relevant_ids
-            )
-
-            marker = " <-- RELEVANT" if is_relevant else ""
-
-            print(
-                f"  {rank}. {document_id}{marker}"
-            )
+            marker = " <-- relevant" if document_id in relevant_ids else ""
+            print(f"   Rank {rank}: {document_id}{marker}")
 
         print()
-
-        print(
-            f"Hit@1: {'PASS' if hit_at_1 else 'FAIL'}"
-        )
-
-        print(
-            f"Hit@{TOP_K}: "
-            f"{'PASS' if hit_at_3 else 'FAIL'}"
-        )
-
-        print(
-            f"Reciprocal Rank: {rr:.3f}"
-        )
-
-        print("-" * 70)
+        print(f"   Hit@1: {hit_at_1}")
+        print(f"   Hit@3: {hit_at_3}")
+        print(f"   Reciprocal Rank: {reciprocal_rank:.4f}")
         print()
+        print("-" * 80)
 
-    # ---------------------------------------------------------
-    # Calculate final metrics
-    # ---------------------------------------------------------
-
-    total_queries = len(EVALUATION_DATA)
-
-    hit_at_1 = (
-        hit_at_1_count / total_queries
-    )
-
-    hit_at_3 = (
-        hit_at_3_count / total_queries
-    )
-
-    mrr = (
-        sum(reciprocal_ranks)
-        / total_queries
-    )
-
-    # ---------------------------------------------------------
-    # Print summary
-    # ---------------------------------------------------------
-
-    print("=" * 70)
-    print("FINAL RETRIEVAL RESULTS")
-    print("=" * 70)
-    print()
-
-    print(
-        f"Queries evaluated: {total_queries}"
-    )
-
-    print(
-        f"Hit@1: {hit_at_1 * 100:.2f}%"
-    )
-
-    print(
-        f"Hit@{TOP_K}: {hit_at_3 * 100:.2f}%"
-    )
-
-    print(
-        f"MRR: {mrr:.4f}"
-    )
+    metrics = calculate_metrics(results)
 
     print()
+    print("=" * 80)
+    print("OVERALL RESULTS")
+    print("=" * 80)
 
-    print(
-        "Metric definitions:"
-    )
-
-    print(
-        "  Hit@k  = whether at least one manually labeled "
-        "relevant chunk appears in the top-k results."
-    )
-
-    print(
-        "  MRR    = average reciprocal rank of the first "
-        "relevant result."
-    )
+    print(f"Questions: {len(results)}")
+    print(f"Hit@1:    {metrics['hit_at_1'] * 100:.2f}%")
+    print(f"Hit@3:    {metrics['hit_at_3'] * 100:.2f}%")
+    print(f"MRR:      {metrics['mrr']:.4f}")
 
     print()
+    print("=" * 80)
+    print("RESULTS BY CATEGORY")
+    print("=" * 80)
 
-    print(
-        "Note: this is a manually constructed evaluation set "
-        "for the congestion-control document. It evaluates "
-        "retrieval ranking, not answer-generation quality."
+    categories = sorted(
+        set(result["category"] for result in results)
     )
+
+    for category in categories:
+        category_results = [
+            result
+            for result in results
+            if result["category"] == category
+        ]
+
+        category_metrics = calculate_metrics(category_results)
+
+        print(f"\n{category}")
+        print(f"  Questions: {len(category_results)}")
+        print(
+            f"  Hit@1: {category_metrics['hit_at_1'] * 100:.2f}%"
+        )
+        print(
+            f"  Hit@3: {category_metrics['hit_at_3'] * 100:.2f}%"
+        )
+        print(
+            f"  MRR:   {category_metrics['mrr']:.4f}"
+        )
 
 
 if __name__ == "__main__":
