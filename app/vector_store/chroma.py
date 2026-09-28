@@ -36,19 +36,27 @@ def add_chunks(
     chunks: list[dict],
 ) -> list[str]:
     """
-    Replace existing chunks for the given sources with the
-    current chunks.
+    Upsert the current chunks, then remove stale chunks.
 
-    The same source document and chunk index always receive
-    the same stable document ID.
+    Upserting first means a failure during embedding or indexing
+    does not delete the previously indexed version of the document.
 
-    Deleting the existing source chunks first prevents stale
-    chunks from remaining when a document becomes smaller
-    after re-ingestion.
+    Stale chunks are deleted only after the current chunks have
+    been successfully added.
+
+    If chunks is empty, nothing is changed and an empty list is returned.
     """
+
+    # Empty input is a no-op.
+    if not chunks:
+        return []
 
     documents = []
     ids = []
+
+    # ---------------------------------------------------------
+    # Build LangChain Documents and stable IDs
+    # ---------------------------------------------------------
 
     for chunk in chunks:
 
@@ -67,22 +75,65 @@ def add_chunks(
         documents.append(document)
         ids.append(document_id)
 
-    # Remove previous chunks for these sources.
-    # This prevents stale chunks when a document shrinks.
+    # ---------------------------------------------------------
+    # 1. Upsert the current chunks first
+    #
+    # Existing IDs are overwritten.
+    # New IDs are added.
+    #
+    # This happens BEFORE stale chunks are removed.
+    # ---------------------------------------------------------
+
+    vectorstore.add_documents(
+        documents=documents,
+        ids=ids,
+    )
+
+    # ---------------------------------------------------------
+    # 2. Remove stale chunks
+    #
+    # Example:
+    #
+    # Previous:
+    #   chunk_0
+    #   chunk_1
+    #   chunk_2
+    #   chunk_3
+    #   chunk_4
+    #
+    # New:
+    #   chunk_0
+    #   chunk_1
+    #   chunk_2
+    #
+    # chunk_3 and chunk_4 are stale and get deleted.
+    # ---------------------------------------------------------
+
+    current_ids = set(ids)
+
     sources = {
         chunk["metadata"]["source"]
         for chunk in chunks
     }
 
     for source in sources:
-        vectorstore.delete(
-            where={"source": source}
+
+        stored_data = vectorstore.get(
+            where={"source": source},
+            include=[],
         )
 
-    # Add the current version of the chunks.
-    vectorstore.add_documents(
-        documents=documents,
-        ids=ids,
-    )
+        stored_ids = stored_data["ids"]
+
+        stale_ids = [
+            document_id
+            for document_id in stored_ids
+            if document_id not in current_ids
+        ]
+
+        if stale_ids:
+            vectorstore.delete(
+                ids=stale_ids
+            )
 
     return ids
