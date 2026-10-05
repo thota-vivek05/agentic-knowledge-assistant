@@ -1,6 +1,6 @@
-from app.rag.chain import retrieve_documents
-from app.rag.prompt import NOT_FOUND_MESSAGE
 from app.graph.state import GraphState
+from app.rag.chain import generate_answer, retrieve_documents
+from app.rag.prompt import NOT_FOUND_MESSAGE
 
 
 def retrieve_node(state: GraphState) -> dict:
@@ -11,6 +11,22 @@ def retrieve_node(state: GraphState) -> dict:
 
     return {
         "documents": documents,
+    }
+
+
+def generate_node(state: GraphState) -> dict:
+    """
+    Generate the final answer using the relevant documents
+    selected by the retrieval grader.
+    """
+    answer = generate_answer(
+        state["question"],
+        state["relevant_documents"],
+    )
+
+    return {
+        "answer": answer,
+        "answered": NOT_FOUND_MESSAGE not in answer,
     }
 
 
