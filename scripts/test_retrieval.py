@@ -3,6 +3,20 @@ from app.vector_store.chroma import create_vectorstore
 
 TOP_K = 3
 
+
+# Retrieval metrics are meaningful only for questions whose answers
+# are supported by the indexed documents.
+#
+# Unsupported and out-of-scope questions are still displayed as
+# diagnostics, but they are excluded from Hit@1, Hit@3 and MRR.
+SUPPORTED_CATEGORIES = {
+    "direct",
+    "paraphrased",
+    "vague",
+    "difficult",
+}
+
+
 EVALUATION_DATA = [
     # ---------------------------------------------------------
     # Direct in-scope questions
@@ -206,6 +220,13 @@ EVALUATION_DATA = [
 
 
 def calculate_metrics(results):
+    if not results:
+        return {
+            "hit_at_1": 0.0,
+            "hit_at_3": 0.0,
+            "mrr": 0.0,
+        }
+
     total = len(results)
 
     hit_at_1 = sum(
@@ -241,6 +262,7 @@ def main():
     vectorstore = create_vectorstore()
 
     results = []
+    all_results = []
 
     for index, item in enumerate(EVALUATION_DATA, start=1):
         question = item["question"]
@@ -281,17 +303,27 @@ def main():
             relevant_ids.intersection(retrieved_ids)
         )
 
+        is_supported = item["category"] in SUPPORTED_CATEGORIES
+
         result = {
             "id": item["id"],
             "category": item["category"],
             "question": question,
             "retrieved_ids": retrieved_ids,
-            "hit_at_1": int(hit_at_1),
-            "hit_at_3": int(hit_at_3),
-            "reciprocal_rank": reciprocal_rank,
+            "evaluable": is_supported,
+            "hit_at_1": int(hit_at_1) if is_supported else None,
+            "hit_at_3": int(hit_at_3) if is_supported else None,
+            "reciprocal_rank": (
+                reciprocal_rank
+                if is_supported
+                else None
+            ),
         }
 
-        results.append(result)
+        all_results.append(result)
+
+        if is_supported:
+            results.append(result)
 
         print(f"{index}. [{item['category']}]")
         print(f"   Question: {question}")
@@ -301,13 +333,31 @@ def main():
             retrieved_ids,
             start=1,
         ):
-            marker = " <-- relevant" if document_id in relevant_ids else ""
-            print(f"   Rank {rank}: {document_id}{marker}")
+            marker = (
+                " <-- relevant"
+                if document_id in relevant_ids
+                else ""
+            )
+            print(
+                f"   Rank {rank}: "
+                f"{document_id}{marker}"
+            )
 
         print()
-        print(f"   Hit@1: {hit_at_1}")
-        print(f"   Hit@3: {hit_at_3}")
-        print(f"   Reciprocal Rank: {reciprocal_rank:.4f}")
+
+        if is_supported:
+            print(f"   Hit@1: {hit_at_1}")
+            print(f"   Hit@3: {hit_at_3}")
+            print(
+                f"   Reciprocal Rank: "
+                f"{reciprocal_rank:.4f}"
+            )
+        else:
+            print(
+                "   Retrieval metrics: EXCLUDED "
+                "(question is unsupported/out-of-scope)"
+            )
+
         print()
         print("-" * 80)
 
@@ -315,13 +365,40 @@ def main():
 
     print()
     print("=" * 80)
-    print("OVERALL RESULTS")
+    print("SUPPORTED RETRIEVAL RESULTS")
     print("=" * 80)
 
-    print(f"Questions: {len(results)}")
-    print(f"Hit@1:    {metrics['hit_at_1'] * 100:.2f}%")
-    print(f"Hit@3:    {metrics['hit_at_3'] * 100:.2f}%")
-    print(f"MRR:      {metrics['mrr']:.4f}")
+    print(
+        f"Questions evaluated: {len(results)}"
+    )
+    print(
+        f"Hit@1:              "
+        f"{metrics['hit_at_1'] * 100:.2f}%"
+    )
+    print(
+        f"Hit@3:              "
+        f"{metrics['hit_at_3'] * 100:.2f}%"
+    )
+    print(
+        f"MRR:                "
+        f"{metrics['mrr']:.4f}"
+    )
+
+    excluded_count = (
+        len(EVALUATION_DATA) - len(results)
+    )
+
+    print()
+    print(
+        f"Excluded from retrieval metrics: "
+        f"{excluded_count} "
+        "(unsupported/out-of-scope)"
+    )
+
+    print(
+        "These questions are evaluated separately "
+        "for answerability and refusal behavior."
+    )
 
     print()
     print("=" * 80)
@@ -339,19 +416,37 @@ def main():
             if result["category"] == category
         ]
 
-        category_metrics = calculate_metrics(category_results)
+        category_metrics = calculate_metrics(
+            category_results
+        )
 
         print(f"\n{category}")
-        print(f"  Questions: {len(category_results)}")
         print(
-            f"  Hit@1: {category_metrics['hit_at_1'] * 100:.2f}%"
+            f"  Questions: "
+            f"{len(category_results)}"
         )
         print(
-            f"  Hit@3: {category_metrics['hit_at_3'] * 100:.2f}%"
+            f"  Hit@1: "
+            f"{category_metrics['hit_at_1'] * 100:.2f}%"
         )
         print(
-            f"  MRR:   {category_metrics['mrr']:.4f}"
+            f"  Hit@3: "
+            f"{category_metrics['hit_at_3'] * 100:.2f}%"
         )
+        print(
+            f"  MRR: "
+            f"{category_metrics['mrr']:.4f}"
+        )
+
+    print()
+    print("Excluded categories:")
+    print("  out_of_scope")
+    print("  related_unsupported")
+    print(
+        "  These are intentionally excluded from "
+        "retrieval metrics because their answers "
+        "are not present in the indexed documents."
+    )
 
 
 if __name__ == "__main__":
